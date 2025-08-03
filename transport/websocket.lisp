@@ -47,7 +47,10 @@
                   :initform *clack-handler*)
    (debug :initarg :debug
           :initform t
-          :reader websocket-transport-debug-p)))
+          :reader websocket-transport-debug-p)
+   (silent :initarg :silent
+           :initform t
+           :reader websocket-transport-silent-p)))
 
 (defmethod initialize-instance :after ((transport websocket-transport) &rest initargs &key url &allow-other-keys)
   (declare (ignore initargs))
@@ -121,6 +124,7 @@
          :port (websocket-transport-port transport)
          :server :hunchentoot
          :debug (websocket-transport-debug-p transport)
+         :silent (websocket-transport-silent-p transport)
          :use-thread nil)))
 
 (defmethod start-client ((transport websocket-transport))
