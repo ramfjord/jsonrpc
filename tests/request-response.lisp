@@ -60,6 +60,42 @@
 				  :version 1.0)))
       (ok (typep message 'response)))))
 
+(deftest read-message-test
+  (testing "ASCII body"
+    (let* ((body "{\"jsonrpc\":\"2.0\",\"method\":\"add\",\"params\":[1,2],\"id\":1}")
+           (frame (format nil "Content-Length: ~A~C~C~C~C~A"
+                          (length body) #\Return #\Newline #\Return #\Newline body)))
+      (with-input-from-string (s frame)
+        (ok (typep (read-message s) 'request)))))
+
+  (testing "Multi-byte UTF-8 body (Content-Length is bytes, not characters)"
+    (let* ((em (string (code-char #x2014)))
+           (body (format nil "{\"jsonrpc\":\"2.0\",\"method\":\"foo~Abar\",\"params\":[1,2],\"id\":1}"
+                         em))
+           (byte-length (+ (length body) 2))
+           (frame (format nil "Content-Length: ~A~C~C~C~C~A"
+                          byte-length #\Return #\Newline #\Return #\Newline body)))
+      (with-input-from-string (s frame)
+        (ok (typep (read-message s) 'request)))))
+
+  (testing "Two back-to-back messages stay in sync after multi-byte body"
+    (let* ((em (string (code-char #x2014)))
+           (body1 (format nil "{\"jsonrpc\":\"2.0\",\"method\":\"a\",\"params\":[\"em~Adash\"],\"id\":1}"
+                          em))
+           (b1len (+ (length body1) 2))
+           (body2 "{\"jsonrpc\":\"2.0\",\"method\":\"b\",\"id\":2}")
+           (b2len (length body2))
+           (frame (format nil "Content-Length: ~A~C~C~C~C~A~
+                               Content-Length: ~A~C~C~C~C~A"
+                          b1len #\Return #\Newline #\Return #\Newline body1
+                          b2len #\Return #\Newline #\Return #\Newline body2)))
+      (with-input-from-string (s frame)
+        (let ((m1 (read-message s))
+              (m2 (read-message s)))
+          (ok (typep m1 'request))
+          (ok (typep m2 'request))
+          (ok (string= (request-method m2) "b")))))))
+
 (deftest json-encode
   (testing "request"
     (let ((request (make-request :id 1 :method "add" :params '(3 10))))

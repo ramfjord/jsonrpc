@@ -189,13 +189,27 @@ Default rpc-version is 2.0, alternatively 1.0 can be supplied."
                (setf (gethash field headers) value)))
     headers))
 
+(defun utf8-byte-width (char)
+  (let ((cc (char-code char)))
+    (cond ((< cc #x80)    1)
+          ((< cc #x800)   2)
+          ((< cc #x10000) 3)
+          (t              4))))
+
+(defun read-body-of-byte-length (stream byte-length)
+  (with-output-to-string (body)
+    (loop with remaining = byte-length
+          while (plusp remaining)
+          for c = (read-char stream nil nil)
+          while c
+          do (write-char c body)
+             (decf remaining (utf8-byte-width c)))))
+
 (defun read-message (stream)
   (let* ((headers (read-headers stream))
          (length (ignore-errors (parse-integer (gethash "content-length" headers)))))
     (when length
-      (let ((body (make-string length)))
-        (read-sequence body stream)
-        (parse-message body)))))
+      (parse-message (read-body-of-byte-length stream length)))))
 
 (defun write-message (message stream)
   (let ((json (with-output-to-string (s)
