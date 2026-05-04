@@ -8,9 +8,6 @@
   (:import-from #:bordeaux-threads
                 #:make-thread
                 #:destroy-thread)
-  (:import-from #:jsonrpc/request-response
-                #:write-message
-                #:read-message)
   (:export #:stdio-transport))
 (in-package #:jsonrpc/transport/stdio)
 
@@ -68,8 +65,3 @@
             :name "jsonrpc/transport/stdio reading")))
     connection))
 
-(defmethod send-message-using-transport ((transport stdio-transport) connection message)
-  (write-message message (connection-stream connection)))
-
-(defmethod receive-message-using-transport ((transport stdio-transport) connection)
-  (read-message (connection-stream connection)))

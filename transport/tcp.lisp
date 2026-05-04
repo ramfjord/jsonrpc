@@ -8,9 +8,6 @@
   (:import-from #:jsonrpc/connection
                 #:connection
                 #:connection-stream)
-  (:import-from #:jsonrpc/request-response
-                #:read-message
-                #:write-message)
   (:import-from #:usocket)
   (:import-from #:cl+ssl)
   (:import-from #:quri)
@@ -121,9 +118,3 @@
 
       connection)))
 
-(defmethod send-message-using-transport ((transport tcp-transport) connection message)
-  (write-message message (connection-stream connection)))
-
-(defmethod receive-message-using-transport ((transport tcp-transport) connection)
-  (handler-case (read-message (connection-stream connection))
-    (jsonrpc/request-response::eof () nil)))
