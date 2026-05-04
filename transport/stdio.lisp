@@ -14,14 +14,23 @@
   (:export #:stdio-transport))
 (in-package #:jsonrpc/transport/stdio)
 
+(defun open-binary-stdio (fd direction)
+  #+sbcl (sb-sys:make-fd-stream fd
+                                :input  (eq direction :input)
+                                :output (eq direction :output)
+                                :element-type '(unsigned-byte 8)
+                                :buffering (if (eq direction :input)
+                                               :line :none))
+  #-sbcl (error "stdio-transport: pass :input/:output binary streams explicitly."))
+
 (defclass stdio-transport (transport)
   ((input :type stream
           :initarg :input
-          :initform *standard-input*
+          :initform (open-binary-stdio 0 :input)
           :accessor stdio-transport-input)
    (output :type stream
            :initarg :output
-           :initform *standard-output*
+           :initform (open-binary-stdio 1 :output)
            :accessor stdio-transport-output)))
 
 (defmethod start-server ((transport stdio-transport))

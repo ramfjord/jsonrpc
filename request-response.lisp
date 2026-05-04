@@ -9,6 +9,13 @@
   (:import-from #:alexandria
                 #:hash-table-keys
                 #:xor)
+  (:import-from #:fast-io
+                #:make-output-buffer
+                #:finish-output-buffer
+                #:fast-write-byte)
+  (:import-from #:trivial-utf-8
+                #:utf-8-bytes-to-string
+                #:string-to-utf-8-bytes)
   (:import-from #:jsonrpc/yason)
   (:export #:request
            #:response
@@ -177,11 +184,28 @@ Default rpc-version is 2.0, alternatively 1.0 can be supplied."
           (yason:encode-object-element "result" (response-result response)))
       (yason:encode-object-element "id" (response-id response)))))
 
-;;; character stream
+(define-condition eof (error) ())
+
+(defun read-ascii-line (stream)
+  (let ((buf (make-output-buffer))
+        (saw-lf nil))
+    (loop for b = (read-byte stream nil nil)
+          while b
+          do (cond ((= b (char-code #\Newline))
+                    (setf saw-lf t)
+                    (loop-finish))
+                   (t (fast-write-byte b buf))))
+    (unless saw-lf (error 'eof))
+    (let* ((bytes (finish-output-buffer buf))
+           (line  (map 'string #'code-char bytes))
+           (n     (length line)))
+      (if (and (plusp n) (char= (char line (1- n)) #\Return))
+          (subseq line 0 (1- n))
+          line))))
 
 (defun read-headers (stream)
   (let ((headers (make-hash-table :test 'equal)))
-    (loop for line = (read-line stream)
+    (loop for line = (read-ascii-line stream)
           until (equal (string-trim '(#\Return #\Newline) line) "")
           do (let* ((colon-pos (position #\: line))
                     (field (string-downcase (subseq line 0 colon-pos)))
@@ -193,16 +217,16 @@ Default rpc-version is 2.0, alternatively 1.0 can be supplied."
   (let* ((headers (read-headers stream))
          (length (ignore-errors (parse-integer (gethash "content-length" headers)))))
     (when length
-      (let ((body (make-string length)))
+      (let ((body (make-array length :element-type '(unsigned-byte 8))))
         (read-sequence body stream)
-        (parse-message body)))))
+        (parse-message (utf-8-bytes-to-string body))))))
 
 (defun write-message (message stream)
-  (let ((json (with-output-to-string (s)
-                (yason:encode message s))))
-    (format stream "Content-Length: ~A~C~C~:*~:*~C~C~A"
-            (length json)
-            #\Return
-            #\Newline
-            json)
+  (let* ((json (with-output-to-string (s) (yason:encode message s)))
+         (body (string-to-utf-8-bytes json)))
+    (write-sequence (string-to-utf-8-bytes
+                     (format nil "Content-Length: ~A~C~C~:*~:*~C~C"
+                             (length body) #\Return #\Newline))
+                    stream)
+    (write-sequence body stream)
     (force-output stream)))
