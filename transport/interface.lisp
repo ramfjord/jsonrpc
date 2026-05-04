@@ -46,7 +46,7 @@
 (defgeneric receive-message-using-transport (transport from)
   (:method ((transport transport) connection)
     (handler-case (read-message (connection-stream connection))
-      (jsonrpc/request-response::eof () nil))))
+      (end-of-file () nil))))
 
 (defgeneric run-processing-loop (transport connection)
   (:method ((transport transport) connection)
